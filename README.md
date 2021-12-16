@@ -14,6 +14,7 @@ where \FilePath\ is the directory containing both this executable and the file y
 For example, if you have DOSBox somewhere in C:\ and your executable and the picture file in C:\foo\
 then you can type:
 
+
 Mount C: \foo\
 
 Then type
