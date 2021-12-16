@@ -1,0 +1,6 @@
+TODO:
+* Add support for command line arguments, such as ability to select:
+    * pixel depth (1, 2, 4, 8, 16, or 24 bits per pixel) (default 8BPP)
+    * compression type (RLE,LZ77, LZW, Huffman, RNC, checkerboard, etc) (default RLE)
+    * target video mode (Text 80x25, 4-color 320x200 CGA, 16-color 640x400 VGA, 256 color 320x200 VGA) (default 256 color 320x200 VGA)
+* Better command line parsing that can handle multiple arguments, and throw errors for corner cases such as passing no arguments etc.
