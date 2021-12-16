@@ -1,0 +1,317 @@
+;8086 MACROS
+;BY WILLIAM DRUM
+
+
+;WILL WORK ON MS-DOS OR BANDAI WONDERSWAN/WONDERSWAN COLOR
+
+;THIS IS THE REQUIRED MACRO FORMAT FOR 8086-BASED MACHINES!
+;OTHER PROCESSORS USE A DIFFERENT FORMAT.
+
+;THIS DOCUMENT IS PUBLIC DOMAIN.
+;-------------------------------------------------------------------
+	pushRegs macro	;pushes just the data regs
+		push ax
+		push bx
+		push cx
+		push dx
+	endm
+;-------------------------------------------------------------------
+	popRegs macro
+		pop dx
+		pop cx
+		pop bx
+		pop ax
+	endm
+;-------------------------------------------------------------------
+	pushall macro 
+	ifdef BuildDOS
+		pushRegs
+		push ds
+		push es
+		push di
+		push si
+	else
+		pusha		;works on 80186+
+	endif
+	endm
+;-------------------------------------------------------------------
+	popall macro 
+	ifdef BuildDos
+		pop si
+		pop di
+		pop es
+		pop ds
+		popRegs
+	else
+		popa			;works on 80186+
+	endif
+	endm
+;-------------------------------------------------------------------
+	aam_base macro base
+		byte 0D4h
+		byte base
+	endm
+;-------------------------------------------------------------------
+	aad_base macro base
+		byte 0D5h
+		byte base
+	endm
+;-------------------------------------------------------------------
+	LoadSegment macro SegmentReg,DataReg,Source
+	;for .data and .code segments, write @data and @code respectively.
+		mov DataReg,Source
+		mov SegmentReg,DataReg
+	endm
+;-------------------------------------------------------------------
+	LoadSeg_Label macro SegmentReg,DataReg,labelname
+		LoadSegment SegmentReg,DataReg,seg labelname
+	endm
+;-------------------------------------------------------------------
+	Load_ESDI macro DataReg,labelname
+		LoadSeg_Label es,DataReg,labelname
+		mov di, offset labelname
+	endm
+;-------------------------------------------------------------------
+	Load_DSSI macro DataReg,labelname
+		LoadSeg_Label ds,DataReg,labelname
+		mov si, offset labelname
+	endm
+;-------------------------------------------------------------------
+	LoadRamOffset macro DataReg,labelname
+	;assumes user ram is in data segment and that ds is already pointed there
+		mov DataReg,offset labelname
+	endm
+;-------------------------------------------------------------------
+	DisableInterrupts macro
+		cli ;because it's backwards on the 6502 and I don't want to mess it up
+	endm
+;-------------------------------------------------------------------
+	EnableInterrupts macro
+		sti
+	endm
+;-------------------------------------------------------------------
+	SALC macro
+	;sets AL = FF if carry set, AL = 0 if carry clear. No flags affected
+		byte 11010110b
+	endm
+;-------------------------------------------------------------------
+	_LSR macro reg,count
+ifdef BuildDOS
+		push cx
+			mov cx,count
+			SHR reg,cx
+		pop cx
+else
+			SHR reg,count		;WonderSwan can do this. MSDOS cannot.
+endif
+	endm
+;-------------------------------------------------------------------
+	_LSL macro reg,count
+ifdef BuildDOS
+		push cx
+			mov cx,count
+			SHL reg,cx
+		pop cx
+else
+		SHL reg,count		;WonderSwan can do this. MSDOS cannot.
+endif
+	endm
+;-------------------------------------------------------------------
+	ASR macro reg,count
+ifdef BuildDOS
+		push cx
+		mov cx,count
+		SAR reg,cx
+		pop cx
+else
+		SAR reg,count		;WonderSwan can do this. MSDOS cannot.
+endif
+	endm
+;-------------------------------------------------------------------
+	ASL macro reg,count
+ifdef BuildDOS
+		push cx
+		mov cx,count
+		SAL reg,cx
+		pop cx
+else
+		SAL reg,count		;WonderSwan can do this. MSDOS cannot.
+endif
+	endm
+;------------------------------------------------------------------
+	RRCA macro reg	
+		ror reg,1
+		;this is confusing if you're used to 6502! They are not the same!
+		;the z80 terminology is better for me.
+	endm
+;------------------------------------------------------------------
+	RLCA macro reg
+		rol reg,1
+	endm
+;------------------------------------------------------------------
+	RRA macro reg
+		rcr reg,1
+	endm
+;------------------------------------------------------------------
+	RLA macro reg
+		rcl reg,1
+	endm
+;------------------------------------------------------------------
+	xchg_ds_es macro
+	;xchg ds,es won't work but this will!
+	push ds
+	push es
+	pop ds
+	pop es
+	endm
+;------------------------------------------------------------------
+	HCF macro
+	;HALT AND CATCH FIRE
+	;CAUSES THE PROGRAM TO FREEZE.
+	;USEFUL FOR DEBUGGING
+	CLI ;disable interrupts
+	HLT ;halt the CPU
+	endm
+;------------------------------------------------------------------
+	SHL_32 macro regLo,regHi
+		SHL regLo,1
+		RCL regHi,1
+	endm
+;------------------------------------------------------------------
+	SHR_32 macro regLo,regHi
+		SHR regHi,1
+		RCR regLo,1
+	endm
+;------------------------------------------------------------------
+	RCR_32 macro regLo,regHi
+		RCR regHi,1
+		RCR regLo,1
+	endm
+;------------------------------------------------------------------
+	RCL_32 macro regLo,regHi
+		RCL regLo,1
+		RCL regHi,1
+	endm
+;------------------------------------------------------------------
+	STZ macro reg
+		;sets a 16-bit register to zero,
+		;in a manner that takes fewer bytes to encode than mov reg,0
+		xor reg,reg
+	endm
+;------------------------------------------------------------------
+	rep_call macro routine,count
+		;only works with functions that preserve/don't change CX, and don't use CX as an argument.
+		mov cx,count
+
+		call routine
+		loop $-3
+	endm
+;------------------------------------------------------------------
+	rep_call_safe macro routine, count
+	;slower than the above, but it means your function doesn't have to preserve CX.
+	;	functions that use CX as an argument won't work with this.
+		mov cx,count
+		push cx
+			call routine
+		pop cx
+		loop $-5
+	endm
+;------------------------------------------------------------------
+	insb_80186 macro
+		ifdef BuildDOS
+			in al,dx
+			stosb
+		else
+			insb
+		endif
+	endm
+;------------------------------------------------------------------
+	rep_insb_80186 macro
+		ifdef BuildDOS
+			in al,dx
+			stosb
+			loop $-2
+		else
+			rep insb
+		endif
+	endm
+;------------------------------------------------------------------
+	insw_80186 macro
+		ifdef BuildDOS
+			in ax,dx
+			stosw
+		else
+			insw
+		endif
+	endm
+;------------------------------------------------------------------
+	rep_insw_80186 macro
+		ifdef BuildDOS
+			in ax,dx
+			stosw
+			loop $-2
+		else
+			rep insw
+		endif
+	endm
+;------------------------------------------------------------------
+	outsb_80186 macro
+		ifdef BuildDOS
+			lodsb
+			out dx,al
+		else
+			outsb
+		endif
+	endm
+;------------------------------------------------------------------
+	rep_outsb_80186 macro
+		ifdef BuildDOS
+			lodsb
+			out dx,al
+			loop $-2
+		else
+			rep outsb
+		endif
+	endm
+;------------------------------------------------------------------
+	outsw_80186 macro
+		ifdef BuildDOS	;MS-DOS doesn't have this instruction
+			lodsw
+			out dx,ax
+		else
+			outsw
+		endif
+	endm
+;------------------------------------------------------------------
+	rep_outsw_80186 macro
+	
+		ifdef BuildDOS
+			lodsw
+			out dx,ax
+			loop $-2
+		else
+			rep outsw
+		endif
+	endm
+;------------------------------------------------------------------
+	bound_80186 macro reg,mem
+		;mem = location of memory table that contains the lower and upper bounds of the array
+		;compares desired reg to lower and upper bound, if not 
+		ifdef BuildDOS	
+			
+		else
+			bound reg,mem	
+		endif
+	endm
+;------------------------------------------------------------------
+;------------------------------------------------------------------
+;------------------------------------------------------------------
+;------------------------------------------------------------------
+;------------------------------------------------------------------
+;------------------------------------------------------------------
+;------------------------------------------------------------------
+;------------------------------------------------------------------
+;------------------------------------------------------------------
+;------------------------------------------------------------------
+;------------------------------------------------------------------
+;------------------------------------------------------------------
