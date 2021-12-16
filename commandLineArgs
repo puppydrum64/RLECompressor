@@ -1,0 +1,95 @@
+ParseCommandLineArgs proc
+	;BUG: PROGRAM COUNTER ESCAPES HERE AND EXECUTES RANDOM CRAP
+	;BUG: ABOVE BUG WAS FIXED BUT NOW FILENAME TURNS INTO AN EQUALS SIGN
+	push ds
+	push es
+		mov ax,word ptr [ds:SEG_PSP]	
+		mov ds,ax
+		
+		mov ax,@data
+		mov es,ax		
+		
+		mov si,80h		;data starts here
+		lodsb
+		mov byte ptr [es:CMD_LEN],al
+		mov cx,7Eh
+		cmp al,cl
+		je CmdOverflow
+		
+		;now SI = 0081h and that points to the command line args		
+parse:
+		lodsb
+		cmp al,'/'
+		jnz continue	;this isn't a command line argument so keep reading. 
+		;garbage in the command line will be silently ignored.
+						
+			;if we've gotten here, we're now reading a potential argument.
+			;this could be anything, 
+			;so we need to look ahead to figure out what we're actually reading.
+			push si
+parseArg:	
+			lodsb
+			cmp al,'.'
+			jz maybeFilename
+			cmp al,20h			;spacebar
+			jz Terminated_parseArg	;we've reached the end of an argument
+			jmp ParseArg
+continue:
+		loop parse
+		
+		
+	pop si
+	pop es
+	pop ds
+	ret
+
+Terminated_ParseArg:
+	;we've read the whole argument and it wasn't a file name.
+	;now go back and figure out what it actually was.
+	inc byte ptr [es:VAR_ARGS]		;increment argument count
+	mov si,word ptr [ss:sp]		;SI now points to the byte just after the slash.
+	;depending on what values are read here, we'll set various flags
+	;	that determine how the compression routine will operate.
+	jmp continue
+	
+maybeFilename:
+		mov al, byte ptr [es:FileIO_Flags]
+		test al,80h		;test bit 7
+		jz isFilename
+		;else, we've already parsed a file.
+		jmp Err_TooManyFiles
+
+isFilename:
+	;we saw a period, so this must be a filename. 
+	;first, set the filename seen already flag so that we can't come back here
+	;	if the parsing routine finds another one.
+	mov al,byte ptr [es:FileIO_Flags]
+	or al,10000000b
+	mov byte ptr [es:FileIO_Flags],al
+	
+	inc byte ptr [es:VAR_ARGS]				;increment argument count
+	
+	mov di,offset Filename
+	mov bp,offset Filename_ASCIZ
+	;now parse the file name.
+	mov si,word ptr [ss:sp]
+	
+parse_isFilename:
+		lodsb
+		;we can't use movsb since that doesn't let us see what we're moving.
+		cmp al,20h		;spacebar
+		je terminated_parse_IsFilename	;we're done, go back to parsing the rest of the command line
+		
+		cmp al,'/'		;if we see this the user didn't format their args correctly
+		je Err_Poorly_Formatted_Args
+		
+		stosb				;store in es:di
+		mov [es:bp],al		;store in es:bp
+		inc bp
+		jmp parse_isFilename
+		
+terminated_parse_IsFilename:
+		
+		jmp continue	;go back to looping through the command line.
+
+ParseCommandLineArgs endp
