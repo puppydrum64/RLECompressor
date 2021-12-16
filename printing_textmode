@@ -1,0 +1,122 @@
+;-------------------------------------------------------------------
+PrintString:			;Print null-terminated strings
+;input: string address = ds:si
+	lodsb				;Load a letter
+	cmp al,0			;Was that letter the terminator?
+	.if(EQUAL?)
+		RET
+	.endif
+	call PrintChar		;Print to screen
+	jmp PrintString		;Repeat
+;-------------------------------------------------------------------
+PrintChar proc		;Print AL to screen
+	push cx
+	push bx
+	push ax
+		cmp al,90h       ;90h is the control code for a custom carriage return
+		jne skipCCR
+			call CustomCarriageReturn
+			jmp done
+skipCCR:
+		cmp al,7
+		jne skipBEL
+			call RingBell
+			jmp done
+skipBEL:
+		mov bl,15			;text color will be white
+		mov ah,0Eh			
+		int 10h				
+done:
+	pop ax
+	pop bx
+	pop cx
+	ret
+PrintChar endp
+;-------------------------------------------------------------------
+PrintSpace:			;Print Space to screen
+	mov al,' '
+	jmp PrintChar	;JMP avoids a tail call.
+	;ret			;"PrintChar"'s ret will do this for us.
+;-------------------------------------------------------------------
+CustomCarriageReturn:
+;starts a new line with a specified offset.
+	ifdef softCarriageReturn
+	pushRegs
+	call NewLine
+		mov BH,0
+		mov ah,03h
+		int 10h		;get cursor position
+	mov al,byte ptr[ds:softCarriageReturn]
+	add DL,AL
+	mov bh,0
+	mov ah,02h
+	int 10h	;set cursor pos
+	;we can't use the macro since that loads a new cursor position.
+	popRegs
+	ret
+	endif
+;-------------------------------------------------------------------
+RingBell:
+	push ax
+	push cx
+	push dx
+		mov al,10110110b	;select counter 2, 16-bit mode
+		out 43h, al
+		
+		mov ax,0C00h		;set pitch of beep
+		out 42h,al
+		mov al,ah
+		out 42h,al
+
+
+		mov al,3		
+		out 61h,al			;enable sound and timer mode
+
+		mov cx,0FFFFh
+		mov dx,0Fh			;set up loop counters
+		
+beepdelay:					;delay lasts about half a second
+		loop beepdelay
+		mov cx,0FFFFh
+		dec dx
+		jnz beepdelay
+		
+		mov al,0			;mute
+		out 61h,al			;cut the sound
+		
+	pop dx
+	pop cx
+	pop ax
+	ret
+;-------------------------------------------------------------------
+NewLine:		;Start New Line
+	push dx
+	push ax
+		mov	ah, 02h	
+		mov	dl, 13	;CR
+		int	21h		
+		mov	dl, 10	;NL
+		int	21h		
+	pop ax
+	pop dx
+	ret
+;-------------------------------------------------------------------
+PRIMM:
+;BUG: THIS CAUSES THE TEXT COLOR IN VGA MODE TO NOT DISPLAY CORRECTLY.
+
+	pop si	
+	push ax
+	;get return address in si, this is the source offset for
+	;the string that will be printed.
+	;String must be null terminated.
+	push ds
+	mov ax,@code
+	mov ds,ax
+		call PrintString
+	pop ds
+	pop ax
+	push si 
+	;PrintString adjusts the return address for us, it is now
+	;just after the null terminator. So put it back on the stack.
+	ret
+;---------------------------------------------------------------------
